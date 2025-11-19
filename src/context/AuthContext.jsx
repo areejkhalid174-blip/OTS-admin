@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { handleLogin as firebaseLogin, getDataById } from '../Helper/firebaseHelper';
 
 const AuthContext = createContext();
 
@@ -19,40 +20,57 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parsing saved user:', e);
+      }
     }
     setLoading(false);
   }, []);
 
-  // Load users from localStorage
-  useEffect(() => {
-    const savedUsers = localStorage.getItem('users');
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    } else {
-      // Initialize with some sample users
-      const sampleUsers = [
-        { id: 1, name: 'Admin User', email: 'admin@example.com', role: 'admin', password: 'admin123' },
-        { id: 2, name: 'John Doe', email: 'john@example.com', role: 'user', password: 'user123' }
-      ];
-      setUsers(sampleUsers);
-      localStorage.setItem('users', JSON.stringify(sampleUsers));
-    }
-  }, []);
-
   const login = async (email, password) => {
     try {
-      const user = users.find(u => u.email === email && u.password === password);
-      if (user) {
-        const { password, ...userWithoutPassword } = user;
-        setUser(userWithoutPassword);
-        localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-        return { success: true, user: userWithoutPassword };
+      // Try Firebase login first
+      const result = await firebaseLogin(email, password);
+      
+      if (result.success && result.data) {
+        const userData = result.data;
+        
+        // Check if user is a rider with pending status
+        if (userData.role === 'Rider' && userData.status === 'pending') {
+          return { 
+            success: false, 
+            error: 'Your account is pending admin approval. Please wait for approval before logging in.' 
+          };
+        }
+        
+        // If rider status is rejected, also block login
+        if (userData.role === 'Rider' && userData.status === 'rejected') {
+          return { 
+            success: false, 
+            error: 'Your account has been rejected. Please contact admin for assistance.' 
+          };
+        }
+        
+        // Check if user is a customer with pending status
+        if (userData.role === 'Customer' && userData.status === 'pending') {
+          return { 
+            success: false, 
+            error: 'Your account is pending admin approval. Please wait for approval before logging in.' 
+          };
+        }
+        
+        // Store user data
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return { success: true, user: userData };
       } else {
-        return { success: false, error: 'Invalid email or password' };
+        return { success: false, error: result.error || 'Invalid email or password' };
       }
     } catch (error) {
-      return { success: false, error: 'Login failed' };
+      console.error('Login error:', error);
+      return { success: false, error: 'Login failed. Please try again.' };
     }
   };
 
@@ -83,9 +101,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
+  const logout = async () => {
+    try {
+      // Import logout from firebaseHelper
+      const { logout: firebaseLogout } = await import('../Helper/firebaseHelper');
+      await firebaseLogout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('user');
+    }
   };
 
   const addUser = (userData) => {

@@ -20,14 +20,15 @@ import {
 } from 'react-icons/fa';
 
 const CustomerManagement = () => {
-  const { customers, loading, addCustomer, updateCustomer, deleteCustomer } = useCustomer();
+  const { customers, loading, error, addCustomer, updateCustomer, deleteCustomer, approveCustomer } = useCustomer();
   const [showModal, setShowModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCity, setFilterCity] = useState('All');
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     address: '',
@@ -35,7 +36,7 @@ const CustomerManagement = () => {
     postalCode: '',
     dateOfBirth: '',
     gender: 'Male',
-    status: 'Active',
+    status: 'approved',
     emergencyContact: '',
     preferences: {
       deliveryTime: 'Evening',
@@ -44,7 +45,7 @@ const CustomerManagement = () => {
     }
   });
 
-  const statusOptions = ['Active', 'Inactive'];
+  const statusOptions = ['pending', 'approved', 'Active', 'Inactive'];
   const genderOptions = ['Male', 'Female', 'Other'];
   const cityOptions = ['Lahore', 'Karachi', 'Islamabad', 'Faisalabad', 'Rawalpindi'];
   const deliveryTimeOptions = ['Morning', 'Afternoon', 'Evening'];
@@ -52,8 +53,11 @@ const CustomerManagement = () => {
 
   const getStatusIcon = (status) => {
     switch (status) {
+      case 'approved':
       case 'Active':
         return <FaCheckCircle style={{ color: '#10B981' }} />;
+      case 'pending':
+        return <FaTimesCircle style={{ color: '#F59E0B' }} />;
       case 'Inactive':
         return <FaTimesCircle style={{ color: '#EF4444' }} />;
       default:
@@ -81,17 +85,18 @@ const CustomerManagement = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (editingCustomer) {
-      updateCustomer(editingCustomer.id, formData);
+      await updateCustomer(editingCustomer.id || editingCustomer.uid, formData);
     } else {
-      addCustomer(formData);
+      await addCustomer(formData);
     }
     
     setFormData({
-      name: '',
+      firstName: '',
+      lastName: '',
       email: '',
       phone: '',
       address: '',
@@ -99,7 +104,7 @@ const CustomerManagement = () => {
       postalCode: '',
       dateOfBirth: '',
       gender: 'Male',
-      status: 'Active',
+      status: 'approved',
       emergencyContact: '',
       preferences: {
         deliveryTime: 'Evening',
@@ -114,51 +119,77 @@ const CustomerManagement = () => {
   const handleEdit = (customer) => {
     setEditingCustomer(customer);
     setFormData({
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      address: customer.address,
-      city: customer.city,
-      postalCode: customer.postalCode,
-      dateOfBirth: customer.dateOfBirth,
-      gender: customer.gender,
-      status: customer.status,
-      emergencyContact: customer.emergencyContact,
+      firstName: customer.firstName || '',
+      lastName: customer.lastName || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      postalCode: customer.postalCode || '',
+      dateOfBirth: customer.dateOfBirth || '',
+      gender: customer.gender || 'Male',
+      status: customer.status || 'approved',
+      emergencyContact: customer.emergencyContact || '',
       preferences: {
         deliveryTime: customer.preferences?.deliveryTime || 'Evening',
         paymentMethod: customer.preferences?.paymentMethod || 'Cash on Delivery',
-        notifications: customer.preferences?.notifications || true
+        notifications: customer.preferences?.notifications !== undefined ? customer.preferences.notifications : true
       }
     });
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this customer?')) {
-      deleteCustomer(id);
+      await deleteCustomer(id);
+    }
+  };
+
+  const handleApprove = async (id) => {
+    if (window.confirm('Are you sure you want to approve this customer?')) {
+      await approveCustomer(id);
     }
   };
 
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        customer.phone.includes(searchTerm) ||
-                        customer.address.toLowerCase().includes(searchTerm.toLowerCase());
+    const fullName = `${customer.firstName || ''} ${customer.lastName || ''}`.toLowerCase();
+    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
+                        (customer.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (customer.phone || '').includes(searchTerm) ||
+                        (customer.address || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'All' || customer.status === filterStatus;
-    const matchesCity = filterCity === 'All' || customer.city === filterCity;
+    const matchesCity = filterCity === 'All' || (customer.city || '') === filterCity;
     
-    return matchesSearch && matchesStatus && matchesCity;
+    // Exclude pending customers from main table (they're shown separately)
+    return matchesSearch && matchesStatus && matchesCity && customer.status !== 'pending';
   });
 
-  const activeCustomers = customers.filter(c => c.status === 'Active');
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
-  const totalOrders = customers.reduce((sum, c) => sum + c.totalOrders, 0);
-  const topCustomers = customers.sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5);
+  const activeCustomers = customers.filter(c => c.status === 'approved' || c.status === 'Active');
+  const totalRevenue = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+  const totalOrders = customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
+  const topCustomers = customers.sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0)).slice(0, 5);
+  const pendingCustomers = customers.filter(c => c.status === 'pending');
 
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <div>Loading customers...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ 
+          background: '#FEE2E2', 
+          border: '1px solid #FCA5A5', 
+          borderRadius: '8px', 
+          padding: '16px',
+          color: '#991B1B'
+        }}>
+          Error: {error}
+        </div>
       </div>
     );
   }
@@ -269,6 +300,27 @@ const CustomerManagement = () => {
             <FaShoppingBag style={{ fontSize: '24px', color: '#3B82F6' }} />
           </div>
         </div>
+
+        <div style={{
+          background: 'white',
+          padding: '20px',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          border: '1px solid #E5E7EB'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Pending Approval</p>
+              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#F59E0B', margin: 0 }}>
+                {pendingCustomers.length}
+              </p>
+              <p style={{ color: '#F59E0B', fontSize: '12px', margin: '5px 0 0 0' }}>
+                Awaiting review
+              </p>
+            </div>
+            <FaTimesCircle style={{ fontSize: '24px', color: '#F59E0B' }} />
+          </div>
+        </div>
       </div>
 
       {/* Top Customers */}
@@ -282,8 +334,10 @@ const CustomerManagement = () => {
       }}>
         <h3 style={{ margin: '0 0 20px 0', color: '#1F2937' }}>Top Customers by Spending</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
-          {topCustomers.map((customer, index) => (
-            <div key={customer.id} style={{
+          {topCustomers.map((customer, index) => {
+            const fullName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A';
+            return (
+              <div key={customer.id || customer.uid} style={{
               background: '#F9FAFB',
               padding: '15px',
               borderRadius: '8px',
@@ -305,18 +359,19 @@ const CustomerManagement = () => {
                   {index + 1}
                 </div>
                 <div>
-                  <div style={{ fontWeight: '600', color: '#1F2937' }}>{customer.name}</div>
-                  <div style={{ fontSize: '12px', color: '#6B7280' }}>{customer.city}</div>
+                    <div style={{ fontWeight: '600', color: '#1F2937' }}>{fullName}</div>
+                    <div style={{ fontSize: '12px', color: '#6B7280' }}>{customer.city || 'N/A'}</div>
                 </div>
               </div>
               <div style={{ fontSize: '14px', color: '#059669', fontWeight: '500' }}>
-                Rs. {customer.totalSpent.toLocaleString()}
+                  Rs. {(customer.totalSpent || 0).toLocaleString()}
               </div>
               <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                {customer.totalOrders} orders
+                  {customer.totalOrders || 0} orders
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -412,7 +467,161 @@ const CustomerManagement = () => {
         </button>
       </div>
 
-      {/* Customers Table */}
+      {/* Pending Customers Table */}
+      <div style={{
+        background: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        border: '1px solid #E5E7EB',
+        overflow: 'hidden',
+        marginBottom: '30px'
+      }}>
+        <div style={{ padding: '16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+          <strong style={{ fontSize: '18px', color: '#1F2937' }}>Pending Customer Approvals ({pendingCustomers.length})</strong>
+        </div>
+        {pendingCustomers.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Customer Information</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Contact Details</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Registration Date</th>
+                  <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Status</th>
+                  <th style={{ padding: '16px', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingCustomers.map((customer) => (
+                  <tr key={customer.id || customer.uid} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <td style={{ padding: '16px' }}>
+                      <div>
+                        <div style={{ fontWeight: '600', color: '#1F2937', fontSize: '14px', marginBottom: '4px' }}>
+                          {customer.firstName} {customer.lastName}
+                        </div>
+                        <div style={{ color: '#6B7280', fontSize: '12px', marginBottom: '2px' }}>
+                          Email: {customer.email || 'N/A'}
+                        </div>
+                        {customer.uid && (
+                          <div style={{ color: '#9CA3AF', fontSize: '11px', marginTop: '4px' }}>
+                            ID: {customer.uid.substring(0, 8)}...
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <FaPhone style={{ fontSize: '12px', color: '#6B7280' }} />
+                          <span style={{ fontSize: '14px', color: '#1F2937' }}>{customer.phone || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <FaEnvelope style={{ fontSize: '12px', color: '#6B7280' }} />
+                          <span style={{ fontSize: '12px', color: '#6B7280' }}>{customer.email || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      {customer.createdAt && (
+                        <div style={{ color: '#6B7280', fontSize: '14px' }}>
+                          {new Date(customer.createdAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <span style={{ 
+                        fontSize: '14px', 
+                        color: '#F59E0B',
+                        fontWeight: '500',
+                        padding: '4px 8px',
+                        background: '#FEF3C7',
+                        borderRadius: '4px'
+                      }}>
+                        Pending
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => handleApprove(customer.id || customer.uid)}
+                          style={{ 
+                            background: '#10B981', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '8px 16px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer', 
+                            fontSize: '12px', 
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={(e) => e.target.style.background = '#059669'}
+                          onMouseOut={(e) => e.target.style.background = '#10B981'}
+                        >
+                          <FaCheckCircle />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleEdit(customer)}
+                          style={{ 
+                            background: '#3B82F6', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '8px 16px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer', 
+                            fontSize: '12px', 
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <FaEdit />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(customer.id || customer.uid)}
+                          style={{ 
+                            background: '#EF4444', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '8px 16px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer', 
+                            fontSize: '12px', 
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={(e) => e.target.style.background = '#DC2626'}
+                          onMouseOut={(e) => e.target.style.background = '#EF4444'}
+                        >
+                          <FaTrash />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+            <FaCheckCircle style={{ fontSize: '48px', color: '#10B981', marginBottom: '16px' }} />
+            <p style={{ fontSize: '16px', margin: 0 }}>No pending customer approvals</p>
+            <p style={{ fontSize: '14px', margin: '8px 0 0 0', color: '#9CA3AF' }}>All customer registrations have been processed</p>
+          </div>
+        )}
+      </div>
+
+      {/* Approved Customers Table */}
       <div style={{
         background: 'white',
         borderRadius: '12px',
@@ -420,6 +629,9 @@ const CustomerManagement = () => {
         border: '1px solid #E5E7EB',
         overflow: 'hidden'
       }}>
+        <div style={{ padding: '16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+          <strong style={{ fontSize: '18px', color: '#1F2937' }}>All Customers</strong>
+        </div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -435,8 +647,12 @@ const CustomerManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredCustomers.map((customer) => (
-                <tr key={customer.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+              {filteredCustomers.length > 0 ? (
+                filteredCustomers.map((customer) => {
+                  const fullName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A';
+                  const initials = fullName !== 'N/A' ? fullName.split(' ').map(n => n[0]).join('').toUpperCase() : '?';
+                  return (
+                    <tr key={customer.id || customer.uid} style={{ borderBottom: '1px solid #F3F4F6' }}>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ 
@@ -450,14 +666,14 @@ const CustomerManagement = () => {
                         color: '#667eea',
                         fontWeight: 'bold'
                       }}>
-                        {customer.name.charAt(0).toUpperCase()}
+                            {initials.substring(0, 2)}
                       </div>
                       <div>
                         <div style={{ fontWeight: '600', color: '#1F2937', fontSize: '14px' }}>
-                          {customer.name}
+                              {fullName}
                         </div>
                         <div style={{ color: '#6B7280', fontSize: '12px' }}>
-                          ID: {customer.id}
+                              ID: {(customer.id || customer.uid || '').substring(0, 8)}...
                         </div>
                       </div>
                     </div>
@@ -466,36 +682,40 @@ const CustomerManagement = () => {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                         <FaPhone style={{ fontSize: '12px', color: '#6B7280' }} />
-                        <span style={{ fontSize: '14px', color: '#1F2937' }}>{customer.phone}</span>
+                            <span style={{ fontSize: '14px', color: '#1F2937' }}>{customer.phone || 'N/A'}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <FaEnvelope style={{ fontSize: '12px', color: '#6B7280' }} />
-                        <span style={{ fontSize: '12px', color: '#6B7280' }}>{customer.email}</span>
+                            <span style={{ fontSize: '12px', color: '#6B7280' }}>{customer.email || 'N/A'}</span>
                       </div>
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>
                     <div>
+                          {customer.city && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                         <FaMapMarkerAlt style={{ fontSize: '12px', color: '#6B7280' }} />
                         <span style={{ fontSize: '14px', color: '#1F2937' }}>{customer.city}</span>
                       </div>
+                          )}
+                          {customer.address && (
                       <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                        {customer.address.substring(0, 30)}...
+                              {customer.address.length > 30 ? customer.address.substring(0, 30) + '...' : customer.address}
                       </div>
+                          )}
                     </div>
                   </td>
                   <td style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {getStatusIcon(customer.status)}
-                      <span style={{ fontSize: '14px', color: '#374151' }}>{customer.status}</span>
+                          <span style={{ fontSize: '14px', color: '#374151' }}>{customer.status || 'N/A'}</span>
                     </div>
                   </td>
                   <td style={{ padding: '16px', color: '#6B7280', fontSize: '14px' }}>
-                    {customer.totalOrders}
+                        {customer.totalOrders || 0}
                   </td>
                   <td style={{ padding: '16px', color: '#059669', fontSize: '14px', fontWeight: '500' }}>
-                    Rs. {customer.totalSpent.toLocaleString()}
+                        Rs. {(customer.totalSpent || 0).toLocaleString()}
                   </td>
                   <td style={{ padding: '16px', color: '#6B7280', fontSize: '14px' }}>
                     {customer.lastOrderDate || 'N/A'}
@@ -521,7 +741,7 @@ const CustomerManagement = () => {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(customer.id)}
+                            onClick={() => handleDelete(customer.id || customer.uid)}
                         style={{
                           background: '#EF4444',
                           color: 'white',
@@ -541,7 +761,15 @@ const CustomerManagement = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+                    No customers found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -583,12 +811,32 @@ const CustomerManagement = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
-                    Full Name *
+                    First Name *
                   </label>
                   <input
                     type="text"
-                    name="name"
-                    value={formData.name}
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
+                    Last Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
                     onChange={handleInputChange}
                     required
                     style={{
@@ -859,7 +1107,8 @@ const CustomerManagement = () => {
                     setShowModal(false);
                     setEditingCustomer(null);
                     setFormData({
-                      name: '',
+                      firstName: '',
+                      lastName: '',
                       email: '',
                       phone: '',
                       address: '',
@@ -867,7 +1116,7 @@ const CustomerManagement = () => {
                       postalCode: '',
                       dateOfBirth: '',
                       gender: 'Male',
-                      status: 'Active',
+                      status: 'approved',
                       emergencyContact: '',
                       preferences: {
                         deliveryTime: 'Evening',

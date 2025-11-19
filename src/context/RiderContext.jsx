@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db } from '../../firebase';
+import { collection, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 
 const RiderContext = createContext();
 
@@ -13,157 +15,130 @@ export const useRider = () => {
 export const RiderProvider = ({ children }) => {
   const [riders, setRiders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Load riders from localStorage
-  useEffect(() => {
-    const savedRiders = localStorage.getItem('riders');
-    if (savedRiders) {
-      setRiders(JSON.parse(savedRiders));
-    } else {
-      // Initialize with sample riders
-      const sampleRiders = [
-        {
-          id: "rider_1",
-          name: "Ahmed Khan",
-          email: "ahmed.khan@example.com",
-          phone: "+92-300-1234567",
-          cnic: "12345-1234567-1",
-          address: "Karachi, Pakistan",
-          licenseNumber: "LIC-2024-001",
-          licenseExpiry: "2025-12-31",
-          vehicleType: "Motorcycle",
-          vehicleNumber: "ABC-123",
-          status: "Active",
-          rating: 4.8,
-          totalDeliveries: 245,
-          joinDate: "2023-01-15",
-          availability: "Available",
-          bankAccount: "1234567890123456",
-          emergencyContact: "+92-301-9876543",
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: "rider_2",
-          name: "Hassan Ali",
-          email: "hassan.ali@example.com",
-          phone: "+92-301-2345678",
-          cnic: "23456-2345678-2",
-          address: "Lahore, Pakistan",
-          licenseNumber: "LIC-2024-002",
-          licenseExpiry: "2025-11-30",
-          vehicleType: "Car",
-          vehicleNumber: "XYZ-456",
-          status: "Active",
-          rating: 4.6,
-          totalDeliveries: 189,
-          joinDate: "2023-03-20",
-          availability: "Busy",
-          bankAccount: "2345678901234567",
-          emergencyContact: "+92-302-8765432",
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: "rider_3",
-          name: "Usman Shah",
-          email: "usman.shah@example.com",
-          phone: "+92-302-3456789",
-          cnic: "34567-3456789-3",
-          address: "Islamabad, Pakistan",
-          licenseNumber: "LIC-2024-003",
-          licenseExpiry: "2025-10-15",
-          vehicleType: "Van",
-          vehicleNumber: "DEF-789",
-          status: "Inactive",
-          rating: 4.9,
-          totalDeliveries: 312,
-          joinDate: "2022-11-10",
-          availability: "Offline",
-          bankAccount: "3456789012345678",
-          emergencyContact: "+92-303-7654321",
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: "rider_4",
-          name: "Bilal Ahmed",
-          email: "bilal.ahmed@example.com",
-          phone: "+92-303-4567890",
-          cnic: "45678-4567890-4",
-          address: "Faisalabad, Pakistan",
-          licenseNumber: "LIC-2024-004",
-          licenseExpiry: "2025-09-20",
-          vehicleType: "Motorcycle",
-          vehicleNumber: "GHI-012",
-          status: "Active",
-          rating: 4.7,
-          totalDeliveries: 156,
-          joinDate: "2023-06-05",
-          availability: "Available",
-          bankAccount: "4567890123456789",
-          emergencyContact: "+92-304-6543210",
-          createdAt: new Date().toISOString()
-        }
-      ];
-      setRiders(sampleRiders);
-      localStorage.setItem('riders', JSON.stringify(sampleRiders));
+  // Fetch riders from Firebase (users with role="Rider")
+  const fetchRiders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const usersCollection = collection(db, 'users');
+      const q = query(usersCollection, where('role', '==', 'Rider'));
+      const querySnapshot = await getDocs(q);
+      const ridersList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        uid: doc.id,
+        ...doc.data()
+      }));
+      setRiders(ridersList);
+    } catch (err) {
+      setError('Failed to fetch riders');
+      console.error('Error fetching riders:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  // Load riders on mount
+  useEffect(() => {
+    fetchRiders();
   }, []);
 
-  const addRider = (riderData) => {
-    const newRider = {
-      id: `rider_${Date.now()}`,
-      ...riderData,
-      rating: 0,
-      totalDeliveries: 0,
-      joinDate: new Date().toISOString().split('T')[0],
-      availability: "Available",
-      createdAt: new Date().toISOString()
-    };
-    const updatedRiders = [...riders, newRider];
-    setRiders(updatedRiders);
-    localStorage.setItem('riders', JSON.stringify(updatedRiders));
-    return { success: true, rider: newRider };
+  const addRider = async (riderData) => {
+    // Riders are added through user signup, so this might not be needed
+    // But keeping it for admin to manually add riders
+    setLoading(true);
+    setError(null);
+    try {
+      await fetchRiders(); // Refresh after potential addition
+      return { success: true };
+    } catch (err) {
+      setError('Failed to add rider');
+      console.error('Error adding rider:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateRider = (id, riderData) => {
-    const updatedRiders = riders.map(rider => 
-      rider.id === id ? { ...rider, ...riderData, updatedAt: new Date().toISOString() } : rider
-    );
-    setRiders(updatedRiders);
-    localStorage.setItem('riders', JSON.stringify(updatedRiders));
-    return { success: true };
+  const updateRider = async (id, riderData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const riderDoc = doc(db, 'users', id);
+      await updateDoc(riderDoc, {
+        ...riderData,
+        updatedAt: new Date().toISOString()
+      });
+      await fetchRiders(); // Refresh the riders list
+      return { success: true };
+    } catch (err) {
+      setError('Failed to update rider');
+      console.error('Error updating rider:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const deleteRider = (id) => {
-    const updatedRiders = riders.filter(rider => rider.id !== id);
-    setRiders(updatedRiders);
-    localStorage.setItem('riders', JSON.stringify(updatedRiders));
-    return { success: true };
+  const deleteRider = async (id) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const riderDoc = doc(db, 'users', id);
+      await deleteDoc(riderDoc);
+      await fetchRiders(); // Refresh the riders list
+      return { success: true };
+    } catch (err) {
+      setError('Failed to delete rider');
+      console.error('Error deleting rider:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Approve rider (change status from pending to approved/active)
+  const approveRider = async (id) => {
+    return updateRider(id, { status: 'approved' });
+  };
+
+  // Reject/Remove rider (change status or delete)
+  const rejectRider = async (id) => {
+    return updateRider(id, { status: 'rejected' });
   };
 
   const getRiderById = (id) => {
-    return riders.find(rider => rider.id === id);
+    return riders.find(rider => rider.id === id || rider.uid === id);
   };
 
   const getRidersByStatus = (status) => {
     return riders.filter(rider => rider.status === status);
   };
 
+  // Get pending riders
+  const getPendingRiders = () => {
+    return riders.filter(rider => rider.status === 'pending');
+  };
+
   const getAvailableRiders = () => {
-    return riders.filter(rider => rider.availability === "Available" && rider.status === "Active");
+    return riders.filter(rider => 
+      (rider.availability === "Available" || !rider.availability) && 
+      (rider.status === "approved" || rider.status === "Active")
+    );
   };
 
   const updateRiderAvailability = (id, availability) => {
     return updateRider(id, { availability });
   };
 
-  const updateRiderRating = (id, newRating) => {
+  const updateRiderRating = async (id, newRating) => {
     const rider = getRiderById(id);
     if (rider) {
-      const totalDeliveries = rider.totalDeliveries + 1;
-      const currentRating = rider.rating * rider.totalDeliveries;
+      const totalDeliveries = (rider.totalDeliveries || 0) + 1;
+      const currentRating = (rider.ratting || 0) * (rider.totalDeliveries || 0);
       const updatedRating = (currentRating + newRating) / totalDeliveries;
-      return updateRider(id, { rating: updatedRating, totalDeliveries });
+      return updateRider(id, { ratting: updatedRating, totalDeliveries });
     }
     return { success: false };
   };
@@ -171,11 +146,16 @@ export const RiderProvider = ({ children }) => {
   const value = {
     riders,
     loading,
+    error,
+    fetchRiders,
     addRider,
     updateRider,
     deleteRider,
+    approveRider,
+    rejectRider,
     getRiderById,
     getRidersByStatus,
+    getPendingRiders,
     getAvailableRiders,
     updateRiderAvailability,
     updateRiderRating

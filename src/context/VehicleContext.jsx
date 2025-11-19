@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db } from '../../firebase';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
 const VehicleContext = createContext();
 
@@ -13,84 +15,96 @@ export const useVehicle = () => {
 export const VehicleProvider = ({ children }) => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Load vehicles from localStorage
-  useEffect(() => {
-    const savedVehicles = localStorage.getItem('vehicles');
-    if (savedVehicles) {
-      setVehicles(JSON.parse(savedVehicles));
-    } else {
-      // Initialize with some sample vehicles
-      const sampleVehicles = [
-        {
-          id: "veh_2",
-          vehicleNumber: "XYZ-456",
-          vehicleType: "Car",
-          brand: "Toyota",
-          model: "Corolla",
-          year: 2021,
-          color: "White",
-          status: "Active",
-          driverName: "Hassan Khan",
-          driverPhone: "+92-301-9876543",
-          registrationDate: "2021-03-20",
-          lastServiceDate: "2024-02-15",
-          nextServiceDate: "2024-05-15",
-          insuranceExpiry: "2024-11-30",
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: "veh_3",
-          vehicleNumber: "DEF-789",
-          vehicleType: "Van",
-          brand: "Suzuki",
-          model: "Every",
-          year: 2020,
-          color: "Blue",
-          status: "Maintenance",
-          driverName: "Usman Ali",
-          driverPhone: "+92-302-5555555",
-          registrationDate: "2020-06-10",
-          lastServiceDate: "2024-01-20",
-          nextServiceDate: "2024-04-20",
-          insuranceExpiry: "2024-10-15",
-          createdAt: new Date().toISOString()
-        }
-      ];
-      setVehicles(sampleVehicles);
-      localStorage.setItem('vehicles', JSON.stringify(sampleVehicles));
+  // Fetch vehicles from Firebase
+  const fetchVehicles = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const vehiclesCollection = collection(db, 'vehicles');
+      const vehiclesSnapshot = await getDocs(vehiclesCollection);
+      const vehiclesList = vehiclesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setVehicles(vehiclesList);
+    } catch (err) {
+      setError('Failed to fetch vehicles');
+      console.error('Error fetching vehicles:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  // Load vehicles on mount
+  useEffect(() => {
+    fetchVehicles();
   }, []);
 
   // Add vehicle with approval status (pending by default)
-  const addVehicle = (vehicleData) => {
-    const newVehicle = {
-      id: `veh_${Date.now()}`,
-      ...vehicleData,
-      approved: false, // pending admin approval
-      createdAt: new Date().toISOString()
-    };
-    const updatedVehicles = [...vehicles, newVehicle];
-    setVehicles(updatedVehicles);
-    localStorage.setItem('vehicles', JSON.stringify(updatedVehicles));
-    return { success: true, vehicle: newVehicle };
+  const addVehicle = async (vehicleData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const vehiclesCollection = collection(db, 'vehicles');
+      const newVehicle = {
+        ...vehicleData,
+        status: vehicleData.status || 'pending',
+        createdAt: new Date().toISOString()
+      };
+      await addDoc(vehiclesCollection, newVehicle);
+      await fetchVehicles(); // Refresh the vehicles list
+      return { success: true };
+    } catch (err) {
+      setError('Failed to add vehicle');
+      console.error('Error adding vehicle:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateVehicle = (id, vehicleData) => {
-    const updatedVehicles = vehicles.map(vehicle => 
-      vehicle.id === id ? { ...vehicle, ...vehicleData, updatedAt: new Date().toISOString() } : vehicle
-    );
-    setVehicles(updatedVehicles);
-    localStorage.setItem('vehicles', JSON.stringify(updatedVehicles));
-    return { success: true };
+  const updateVehicle = async (id, vehicleData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const vehicleDoc = doc(db, 'vehicles', id);
+      await updateDoc(vehicleDoc, {
+        ...vehicleData,
+        updatedAt: new Date().toISOString()
+      });
+      await fetchVehicles(); // Refresh the vehicles list
+      return { success: true };
+    } catch (err) {
+      setError('Failed to update vehicle');
+      console.error('Error updating vehicle:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const deleteVehicle = (id) => {
-    const updatedVehicles = vehicles.filter(vehicle => vehicle.id !== id);
-    setVehicles(updatedVehicles);
-    localStorage.setItem('vehicles', JSON.stringify(updatedVehicles));
-    return { success: true };
+  const deleteVehicle = async (id) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const vehicleDoc = doc(db, 'vehicles', id);
+      await deleteDoc(vehicleDoc);
+      await fetchVehicles(); // Refresh the vehicles list
+      return { success: true };
+    } catch (err) {
+      setError('Failed to delete vehicle');
+      console.error('Error deleting vehicle:', err);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Approve vehicle (change status from pending to approved)
+  const approveVehicle = async (id) => {
+    return updateVehicle(id, { status: 'approved' });
   };
 
   const getVehicleById = (id) => {
@@ -102,18 +116,27 @@ export const VehicleProvider = ({ children }) => {
   };
 
   const getVehiclesByType = (type) => {
-    return vehicles.filter(vehicle => vehicle.vehicleType === type);
+    return vehicles.filter(vehicle => vehicle.vehicleType === type || vehicle.category === type);
+  };
+
+  // Get pending vehicles
+  const getPendingVehicles = () => {
+    return vehicles.filter(vehicle => vehicle.status === 'pending');
   };
 
   const value = {
     vehicles,
     loading,
+    error,
+    fetchVehicles,
     addVehicle,
     updateVehicle,
     deleteVehicle,
+    approveVehicle,
     getVehicleById,
     getVehiclesByStatus,
-    getVehiclesByType
+    getVehiclesByType,
+    getPendingVehicles
   };
 
   return (

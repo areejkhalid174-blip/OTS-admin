@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { handleSignUp } from '../Helper/firebaseHelper';
 
 export default function SignUp() {
   const [formData, setFormData] = useState({
@@ -65,10 +66,11 @@ export default function SignUp() {
 
     setLoading(true);
     try {
-      const result = await signup({
+      const result = await handleSignUp(formData.email, formData.password, {
         name: formData.name,
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        role: "admin"
       });
 
       if (result.success) {

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { setUser, setRole } from '../redux/Slices/HomeDataSlice';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -11,6 +13,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,6 +59,14 @@ export default function Login() {
       const result = await login(formData.email, formData.password);
 
       if (result.success) {
+        // Store user data in Redux
+        if (result.user) {
+          dispatch(setUser(result.user));
+          if (result.user.role) {
+            dispatch(setRole(result.user.role));
+          }
+        }
+        
         // Redirect customers to CustomerHome, admins/users to dashboard
         const role = result.user?.role || '';
         if (role.toLowerCase() === 'customer' || role.toLowerCase() === 'user') {

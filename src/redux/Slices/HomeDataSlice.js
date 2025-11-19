@@ -19,7 +19,7 @@ const homeSlice = createSlice({
             state.name = action.payload
         },
         setRole: (state, action) => {
-            state.roler = action.payload
+            state.role = action.payload
         },
 
 
