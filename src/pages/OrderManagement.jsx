@@ -30,6 +30,7 @@ export default function OrderManagement() {
   const [assignModalOrder, setAssignModalOrder] = useState(null);
   const [selectedRiderId, setSelectedRiderId] = useState(null);
   const [assignLoading, setAssignLoading] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [viewDetails, setViewDetails] = useState(null);
@@ -129,14 +130,16 @@ export default function OrderManagement() {
   };
 
   // Assign rider handlers
-  const openAssignModal = (order) => {
+  const openAssignModal = (order, isReassign = false) => {
     setAssignModalOrder(order);
-    setSelectedRiderId(order?.riderId || null);
+    setSelectedRiderId(order?.riderId || order?.riderUid || null);
+    setIsReassigning(isReassign || !!(order?.riderId || order?.riderUid));
   };
 
   const closeAssignModal = () => {
     setAssignModalOrder(null);
     setSelectedRiderId(null);
+    setIsReassigning(false);
   };
 
   const saveAssignModal = async () => {
@@ -161,7 +164,7 @@ export default function OrderManagement() {
 
       await fetchOrders(); // Refresh orders from Firebase
       closeAssignModal();
-      alert("Rider assigned successfully!");
+      alert(isReassigning ? "Rider reassigned successfully!" : "Rider assigned successfully!");
     } catch (err) {
       console.error('Error assigning rider:', err);
       alert('Failed to assign rider');
@@ -536,21 +539,40 @@ export default function OrderManagement() {
                         >
                           Edit
                         </button>
-                        <button
-                          onClick={() => openAssignModal(order)}
-                          style={{ 
-                            background: '#8B5CF6', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 12px', 
-                            borderRadius: '6px', 
-                            cursor: 'pointer', 
-                            fontSize: '11px', 
-                            fontWeight: 600
-                          }}
-                        >
-                          Assign
-                        </button>
+                        {order.riderId || order.riderUid ? (
+                          <button
+                            onClick={() => openAssignModal(order, true)}
+                            style={{ 
+                              background: '#F59E0B', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 12px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                            title="Reassign rider"
+                          >
+                            Reassign
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openAssignModal(order)}
+                            style={{ 
+                              background: '#8B5CF6', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 12px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                          >
+                            Assign
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDelete(order.id)}
                           style={{ 
@@ -718,21 +740,40 @@ export default function OrderManagement() {
                         >
                           Edit
                         </button>
-                        <button
-                          onClick={() => openAssignModal(order)}
-                          style={{ 
-                            background: '#8B5CF6', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '6px 10px', 
-                            borderRadius: '6px', 
-                            cursor: 'pointer', 
-                            fontSize: '11px', 
-                            fontWeight: 600
-                          }}
-                        >
-                          Assign
-                        </button>
+                        {order.riderId || order.riderUid ? (
+                          <button
+                            onClick={() => openAssignModal(order, true)}
+                            style={{ 
+                              background: '#F59E0B', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                            title="Reassign rider"
+                          >
+                            Reassign
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openAssignModal(order)}
+                            style={{ 
+                              background: '#8B5CF6', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                          >
+                            Assign
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDelete(order.id)}
                           style={{ 
@@ -1514,7 +1555,9 @@ export default function OrderManagement() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1F2937', margin: 0 }}>Assign Rider</h2>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1F2937', margin: 0 }}>
+                {isReassigning ? 'Reassign Rider' : 'Assign Rider'}
+              </h2>
               <button 
                 onClick={closeAssignModal}
                 style={{ 
@@ -1530,6 +1573,20 @@ export default function OrderManagement() {
             </div>
             <div style={{ marginBottom: '20px' }}>
               <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '15px' }}>Order ID: {assignModalOrder.id}</p>
+              {isReassigning && assignModalOrder.riderName && (
+                <div style={{ 
+                  padding: '10px', 
+                  background: '#FEF3C7', 
+                  borderRadius: '6px', 
+                  marginBottom: '15px',
+                  border: '1px solid #FCD34D'
+                }}>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#92400E' }}>
+                    Current Rider: <strong>{assignModalOrder.riderName}</strong>
+                    {assignModalOrder.riderPhone && ` (${assignModalOrder.riderPhone})`}
+                  </p>
+                </div>
+              )}
               {riders.length === 0 ? (
                 <div style={{ 
                   padding: '20px', 
@@ -1618,7 +1675,7 @@ export default function OrderManagement() {
                   fontWeight: '600'
                 }}
               >
-                {assignLoading ? 'Assigning...' : 'Assign Rider'}
+                {assignLoading ? (isReassigning ? 'Reassigning...' : 'Assigning...') : (isReassigning ? 'Reassign Rider' : 'Assign Rider')}
               </button>
             </div>
           </div>
