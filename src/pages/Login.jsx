@@ -59,21 +59,14 @@ export default function Login() {
       const result = await login(formData.email, formData.password);
 
       if (result.success) {
-        // Store user data in Redux
         if (result.user) {
           dispatch(setUser(result.user));
           if (result.user.role) {
             dispatch(setRole(result.user.role));
           }
         }
-        
-        // Redirect customers to CustomerHome, admins/users to dashboard
-        const role = result.user?.role || '';
-        if (role.toLowerCase() === 'customer' || role.toLowerCase() === 'user') {
-          navigate('/customer-home');
-        } else {
-          navigate('/dashboard');
-        }
+
+        window.location.assign('http://localhost:8081/RiderHome');
       } else {
         setErrors({ general: result.error });
       }
