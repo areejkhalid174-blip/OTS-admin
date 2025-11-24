@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useOrder } from '../context/OrderContext';
-import { useCustomer } from '../context/CustomerContext';
-import { useDeliveryService } from '../context/DeliveryServiceContext';
-import { useRider } from '../context/RiderContext';
+import { getAllData, updateData } from '../Helper/firebaseHelper';
 import { 
   FaPlus, 
   FaEdit, 
@@ -23,190 +20,203 @@ import {
   FaBicycle,
   FaStar,
   FaCalendarAlt,
-  FaCreditCard
+  FaCreditCard,
+  FaBox,
+  FaWeight,
+  FaImage,
+  FaShippingFast
 } from 'react-icons/fa';
 
 const OrderPlacement = () => {
-  const { orders, loading, addOrder, updateOrderStatus, getOrderStats } = useOrder();
-  const { customers } = useCustomer();
-  const { deliveryServices } = useDeliveryService();
-  const { getAvailableRiders } = useRider();
-  
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [riders, setRiders] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [filterPayment, setFilterPayment] = useState('All');
-  
-  const [formData, setFormData] = useState({
-    customerId: '',
-    items: [{ name: '', quantity: 1, price: 0, category: 'Food' }],
-    deliveryService: '',
-    paymentMethod: 'Cash on Delivery',
-    specialInstructions: '',
-    estimatedDelivery: ''
-  });
+  const [assignModalOrder, setAssignModalOrder] = useState(null);
+  const [selectedRiderId, setSelectedRiderId] = useState(null);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [viewDetails, setViewDetails] = useState(null);
 
-  const categories = ['Food', 'Beverages', 'Desserts', 'Groceries', 'Pharmacy', 'Electronics'];
-  const paymentMethods = ['Cash on Delivery', 'Online Payment', 'Card Payment'];
-  const statusOptions = ['Pending', 'Assigned', 'In Progress', 'Delivered', 'Cancelled'];
+  // Fetch orders from Firebase
+  const fetchOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getAllData("orders");
+      setOrders(data || []);
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+      setError("Failed to fetch orders");
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch riders from users collection
+  const fetchRiders = async () => {
+    try {
+      const users = await getAllData('users');
+      if (Array.isArray(users)) {
+        const onlyRiders = users.filter(u => 
+          (u.role || '').toLowerCase() === 'rider'
+        );
+        setRiders(onlyRiders);
+      } else {
+        setRiders([]);
+      }
+    } catch (err) {
+      console.error('Error fetching riders:', err);
+      setRiders([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchRiders();
+  }, []);
 
   const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Pending':
+    const statusLower = (status || '').toLowerCase();
+    switch (statusLower) {
+      case 'pending':
         return <FaClock style={{ color: '#F59E0B' }} />;
-      case 'Assigned':
+      case 'assigned':
         return <FaUser style={{ color: '#3B82F6' }} />;
-      case 'In Progress':
+      case 'in-progress':
+      case 'in progress':
         return <FaExclamationTriangle style={{ color: '#8B5CF6' }} />;
-      case 'Delivered':
+      case 'delivered':
         return <FaCheckCircle style={{ color: '#10B981' }} />;
-      case 'Cancelled':
+      case 'cancelled':
         return <FaTimesCircle style={{ color: '#EF4444' }} />;
       default:
         return <FaClock style={{ color: '#F59E0B' }} />;
     }
   };
 
-  const getPaymentIcon = (method) => {
-    switch (method) {
-      case 'Online Payment':
-        return <FaCreditCard style={{ color: '#3B82F6' }} />;
-      case 'Card Payment':
-        return <FaCreditCard style={{ color: '#059669' }} />;
-      case 'Cash on Delivery':
-        return <FaDollarSign style={{ color: '#F59E0B' }} />;
+  const getStatusColor = (status) => {
+    const statusLower = (status || '').toLowerCase();
+    switch (statusLower) {
+      case 'pending':
+        return '#F59E0B';
+      case 'assigned':
+        return '#3B82F6';
+      case 'in-progress':
+      case 'in progress':
+        return '#8B5CF6';
+      case 'delivered':
+        return '#10B981';
+      case 'cancelled':
+        return '#EF4444';
       default:
-        return <FaDollarSign style={{ color: '#F59E0B' }} />;
+        return '#6B7280';
     }
   };
 
-  const getServiceIcon = (serviceName) => {
-    const service = deliveryServices.find(s => s.name === serviceName);
-    if (!service) return <FaMotorcycle />;
-    
-    switch (service.icon) {
-      case 'bicycle':
-        return <FaBicycle />;
-      case 'motorcycle':
-        return <FaMotorcycle />;
-      case 'car':
-        return <FaCar />;
-      case 'van':
-        return <FaTruck />;
-      default:
-        return <FaMotorcycle />;
-    }
+  // Assign rider handlers
+  const openAssignModal = (order) => {
+    setAssignModalOrder(order);
+    setSelectedRiderId(order?.riderId || order?.riderUid || null);
   };
 
-  const calculateTotal = (items, deliveryServiceName) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-    const service = deliveryServices.find(s => s.name === deliveryServiceName);
-    const deliveryFee = service ? parseFloat(service.price.replace('k.00', '')) * 100 : 0;
-    return {
-      subtotal,
-      deliveryFee,
-      total: subtotal + deliveryFee
-    };
+  const closeAssignModal = () => {
+    setAssignModalOrder(null);
+    setSelectedRiderId(null);
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleItemChange = (index, field, value) => {
-    const updatedItems = [...formData.items];
-    updatedItems[index][field] = field === 'quantity' || field === 'price' ? 
-      parseFloat(value) || 0 : value;
-    setFormData(prev => ({
-      ...prev,
-      items: updatedItems
-    }));
-  };
-
-  const addItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, { name: '', quantity: 1, price: 0, category: 'Food' }]
-    }));
-  };
-
-  const removeItem = (index) => {
-    if (formData.items.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        items: prev.items.filter((_, i) => i !== index)
-      }));
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    const selectedCustomer = customers.find(c => c.id === formData.customerId);
-    const selectedService = deliveryServices.find(s => s.name === formData.deliveryService);
-    
-    if (!selectedCustomer || !selectedService) {
-      alert('Please select a customer and delivery service');
+  const saveAssignModal = async () => {
+    if (!assignModalOrder) return;
+    if (!selectedRiderId) {
+      alert('Please select a rider');
       return;
     }
+    setAssignLoading(true);
+    try {
+      const rider = riders.find(r => r.id === selectedRiderId || r.uid === selectedRiderId) || null;
+      const riderName = rider?.firstName ? `${rider.firstName} ${rider.lastName || ''}`.trim() : (rider?.name || '');
+      const riderPhone = rider?.phone || '';
+      const riderEmail = rider?.email || '';
 
-    const totals = calculateTotal(formData.items, formData.deliveryService);
-    
-    const orderData = {
-      customerId: formData.customerId,
-      customerName: selectedCustomer.name,
-      customerPhone: selectedCustomer.phone,
-      customerAddress: selectedCustomer.address,
-      items: formData.items,
-      deliveryService: formData.deliveryService,
-      deliveryFee: totals.deliveryFee,
-      subtotal: totals.subtotal,
-      total: totals.total,
-      paymentMethod: formData.paymentMethod,
-      paymentStatus: formData.paymentMethod === 'Cash on Delivery' ? 'Pending' : 'Paid',
-      estimatedDelivery: formData.estimatedDelivery,
-      specialInstructions: formData.specialInstructions
-    };
+      await updateData('orders', assignModalOrder.id, {
+        riderId: selectedRiderId,
+        riderUid: selectedRiderId,
+        riderName: riderName || null,
+        riderPhone: riderPhone || null,
+        riderEmail: riderEmail || null,
+        status: assignModalOrder.status === 'pending' ? 'assigned' : assignModalOrder.status,
+        updatedAt: new Date().toISOString()
+      });
 
-    if (editingOrder) {
-      updateOrderStatus(editingOrder.id, formData.status || 'Pending');
-    } else {
-      addOrder(orderData);
+      await fetchOrders();
+      closeAssignModal();
+      alert("Rider assigned successfully!");
+    } catch (err) {
+      console.error('Error assigning rider:', err);
+      alert('Failed to assign rider');
+    } finally {
+      setAssignLoading(false);
     }
-    
-    setFormData({
-      customerId: '',
-      items: [{ name: '', quantity: 1, price: 0, category: 'Food' }],
-      deliveryService: '',
-      paymentMethod: 'Cash on Delivery',
-      specialInstructions: '',
-      estimatedDelivery: ''
-    });
-    setShowModal(false);
-    setEditingOrder(null);
+  };
+
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    try {
+      await updateData('orders', orderId, { 
+        status: newStatus, 
+        updatedAt: new Date().toISOString() 
+      });
+      await fetchOrders();
+      alert("Order status updated successfully!");
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert('Failed to update status');
+    }
   };
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        order.customerPhone.includes(searchTerm);
-    const matchesStatus = filterStatus === 'All' || order.status === filterStatus;
-    const matchesPayment = filterPayment === 'All' || order.paymentStatus === filterPayment;
+    const matchesSearch = 
+      (order.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.customerEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.pickupLocation || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.dropLocation || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.id || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'All' || (order.status || '').toLowerCase() === filterStatus.toLowerCase();
     
-    return matchesSearch && matchesStatus && matchesPayment;
+    return matchesSearch && matchesStatus;
   });
 
-  const stats = getOrderStats();
+  const stats = {
+    totalOrders: orders.length,
+    pendingOrders: orders.filter(o => (o.status || '').toLowerCase() === 'pending').length,
+    assignedOrders: orders.filter(o => (o.status || '').toLowerCase() === 'assigned').length,
+    deliveredOrders: orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length,
+    inProgressOrders: orders.filter(o => (o.status || '').toLowerCase() === 'in-progress' || (o.status || '').toLowerCase() === 'in progress').length
+  };
 
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <div>Loading orders...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ 
+          background: '#FEE2E2', 
+          border: '1px solid #FCA5A5', 
+          borderRadius: '8px', 
+          padding: '16px',
+          color: '#991B1B'
+        }}>
+          Error: {error}
+        </div>
       </div>
     );
   }
@@ -223,14 +233,14 @@ const OrderPlacement = () => {
           Order Management
         </h1>
         <p style={{ color: '#6B7280', fontSize: '16px' }}>
-          Place new orders, track existing orders, and manage the complete order lifecycle.
+          View all orders, assign riders, and manage the complete order lifecycle.
         </p>
       </div>
 
       {/* Stats Cards */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
         gap: '20px', 
         marginBottom: '30px' 
       }}>
@@ -246,9 +256,6 @@ const OrderPlacement = () => {
               <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Total Orders</p>
               <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#1F2937', margin: 0 }}>
                 {stats.totalOrders}
-              </p>
-              <p style={{ color: '#10B981', fontSize: '12px', margin: '5px 0 0 0' }}>
-                +{Math.floor(stats.totalOrders * 0.1)} today
               </p>
             </div>
             <FaShoppingCart style={{ fontSize: '24px', color: '#667eea' }} />
@@ -285,15 +292,12 @@ const OrderPlacement = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>In Progress</p>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#8B5CF6', margin: 0 }}>
-                {stats.inProgressOrders}
-              </p>
-              <p style={{ color: '#8B5CF6', fontSize: '12px', margin: '5px 0 0 0' }}>
-                Being delivered
+              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Assigned</p>
+              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#3B82F6', margin: 0 }}>
+                {stats.assignedOrders}
               </p>
             </div>
-            <FaExclamationTriangle style={{ fontSize: '24px', color: '#8B5CF6' }} />
+            <FaUser style={{ fontSize: '24px', color: '#3B82F6' }} />
           </div>
         </div>
 
@@ -306,15 +310,12 @@ const OrderPlacement = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Total Revenue</p>
+              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Delivered</p>
               <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#10B981', margin: 0 }}>
-                Rs. {stats.totalRevenue.toLocaleString()}
-              </p>
-              <p style={{ color: '#10B981', fontSize: '12px', margin: '5px 0 0 0' }}>
-                Avg: Rs. {stats.averageOrderValue.toFixed(0)}
+                {stats.deliveredOrders}
               </p>
             </div>
-            <FaDollarSign style={{ fontSize: '24px', color: '#10B981' }} />
+            <FaCheckCircle style={{ fontSize: '24px', color: '#10B981' }} />
           </div>
         </div>
       </div>
@@ -364,51 +365,13 @@ const OrderPlacement = () => {
             }}
           >
             <option value="All">All Status</option>
-            {statusOptions.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-
-          <select
-            value={filterPayment}
-            onChange={(e) => setFilterPayment(e.target.value)}
-            style={{
-              padding: '10px 15px',
-              border: '1px solid #D1D5DB',
-              borderRadius: '8px',
-              fontSize: '14px',
-              background: 'white'
-            }}
-          >
-            <option value="All">All Payment</option>
-            <option value="Paid">Paid</option>
-            <option value="Pending">Pending</option>
-            <option value="Refunded">Refunded</option>
+            <option value="pending">Pending</option>
+            <option value="assigned">Assigned</option>
+            <option value="in-progress">In Progress</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
-
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
-            border: 'none',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.3s ease'
-          }}
-          onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-          onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-        >
-          <FaPlus />
-          Place New Order
-        </button>
       </div>
 
       {/* Orders Table */}
@@ -425,473 +388,569 @@ const OrderPlacement = () => {
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
                 <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Order ID</th>
                 <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Customer</th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Items</th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Delivery Service</th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Total</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Route</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Package Details</th>
                 <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Status</th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Payment</th>
-                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Order Date</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Rider</th>
+                <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Date</th>
                 <th style={{ padding: '16px', textAlign: 'center', fontWeight: '600', color: '#374151' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order) => (
-                <tr key={order.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ fontWeight: '600', color: '#1F2937', fontSize: '14px' }}>
-                      {order.id}
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <div>
-                      <div style={{ fontWeight: '500', color: '#1F2937', fontSize: '14px' }}>
-                        {order.customerName}
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((order) => (
+                  <tr key={order.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <td style={{ padding: '16px' }}>
+                      <div style={{ fontWeight: '600', color: '#1F2937', fontSize: '14px' }}>
+                        {order.id?.substring(0, 12)}...
                       </div>
-                      <div style={{ color: '#6B7280', fontSize: '12px' }}>
-                        {order.customerPhone}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ maxWidth: '200px' }}>
-                      {order.items.map((item, index) => (
-                        <div key={index} style={{ fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
-                          {item.quantity}x {item.name}
+                      {order.createdAt && (
+                        <div style={{ color: '#9CA3AF', fontSize: '11px', marginTop: '4px' }}>
+                          {new Date(order.createdAt).toLocaleDateString()}
                         </div>
-                      ))}
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {getServiceIcon(order.deliveryService)}
-                      <span style={{ fontSize: '14px', color: '#374151' }}>{order.deliveryService}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px', color: '#059669', fontSize: '14px', fontWeight: '500' }}>
-                    Rs. {order.total.toLocaleString()}
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {getStatusIcon(order.status)}
-                      <span style={{ fontSize: '14px', color: '#374151' }}>{order.status}</span>
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {getPaymentIcon(order.paymentMethod)}
+                      )}
+                    </td>
+                    <td style={{ padding: '16px' }}>
                       <div>
-                        <div style={{ fontSize: '12px', color: '#374151' }}>{order.paymentMethod}</div>
-                        <div style={{ fontSize: '11px', color: '#6B7280' }}>{order.paymentStatus}</div>
+                        <div style={{ fontWeight: '500', color: '#1F2937', fontSize: '14px', marginBottom: '4px' }}>
+                          {order.customerName || 'N/A'}
+                        </div>
+                        <div style={{ color: '#6B7280', fontSize: '12px' }}>
+                          {order.customerEmail || 'N/A'}
+                        </div>
+                        {order.userId && (
+                          <div style={{ color: '#9CA3AF', fontSize: '11px', marginTop: '2px' }}>
+                            ID: {order.userId.substring(0, 8)}...
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px', color: '#6B7280', fontSize: '14px' }}>
-                    {new Date(order.orderDate).toLocaleDateString()}
-                  </td>
-                  <td style={{ padding: '16px', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                      <button
-                        onClick={() => updateOrderStatus(order.id, 'Delivered')}
-                        disabled={order.status === 'Delivered' || order.status === 'Cancelled'}
-                        style={{
-                          background: order.status === 'Delivered' ? '#D1D5DB' : '#10B981',
-                          color: 'white',
-                          border: 'none',
-                          padding: '6px 10px',
-                          borderRadius: '4px',
-                          cursor: order.status === 'Delivered' ? 'not-allowed' : 'pointer',
-                          fontSize: '11px'
-                        }}
-                      >
-                        Complete
-                      </button>
-                      <button
-                        onClick={() => updateOrderStatus(order.id, 'Cancelled', { cancellationReason: 'Cancelled by admin' })}
-                        disabled={order.status === 'Delivered' || order.status === 'Cancelled'}
-                        style={{
-                          background: order.status === 'Cancelled' ? '#D1D5DB' : '#EF4444',
-                          color: 'white',
-                          border: 'none',
-                          padding: '6px 10px',
-                          borderRadius: '4px',
-                          cursor: order.status === 'Cancelled' ? 'not-allowed' : 'pointer',
-                          fontSize: '11px'
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <FaMapMarkerAlt style={{ fontSize: '12px', color: '#10B981' }} />
+                          <span style={{ fontSize: '12px', color: '#6B7280' }}>Pickup: {order.pickupLocation || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <FaMapMarkerAlt style={{ fontSize: '12px', color: '#EF4444' }} />
+                          <span style={{ fontSize: '12px', color: '#6B7280' }}>Drop: {order.dropLocation || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '2px' }}>
+                          <FaBox style={{ display: 'inline', marginRight: '4px' }} />
+                          Type: {order.packageType || 'N/A'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '2px' }}>
+                          <FaWeight style={{ display: 'inline', marginRight: '4px' }} />
+                          Weight: {order.weight || 'N/A'} kg
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                          Category: {order.categoryName || 'N/A'}
+                        </div>
+                        {order.packagePhoto && (
+                          <div style={{ marginTop: '4px' }}>
+                            <FaImage style={{ fontSize: '12px', color: '#3B82F6' }} />
+                            <span style={{ fontSize: '11px', color: '#3B82F6', marginLeft: '4px' }}>Photo</span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {getStatusIcon(order.status)}
+                        <span style={{ 
+                          fontSize: '14px', 
+                          color: getStatusColor(order.status),
+                          fontWeight: '500',
+                          textTransform: 'capitalize'
+                        }}>
+                          {order.status || 'pending'}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px' }}>
+                      {order.riderName ? (
+                        <div>
+                          <div style={{ fontWeight: '500', color: '#1F2937', fontSize: '14px' }}>
+                            {order.riderName}
+                          </div>
+                          {order.riderPhone && (
+                            <div style={{ color: '#6B7280', fontSize: '12px' }}>
+                              {order.riderPhone}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ color: '#9CA3AF', fontSize: '12px', fontStyle: 'italic' }}>
+                          Not assigned
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: '16px', color: '#6B7280', fontSize: '14px' }}>
+                      {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td style={{ padding: '16px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => setViewDetails(order)}
+                          style={{ 
+                            background: '#3B82F6', 
+                            color: 'white', 
+                            border: 'none', 
+                            padding: '6px 10px', 
+                            borderRadius: '6px', 
+                            cursor: 'pointer', 
+                            fontSize: '11px', 
+                            fontWeight: 600
+                          }}
+                        >
+                          View
+                        </button>
+                        {(order.status === 'pending' || order.status === 'assigned') && (
+                          <button
+                            onClick={() => openAssignModal(order)}
+                            style={{ 
+                              background: '#8B5CF6', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                          >
+                            {order.riderName ? 'Reassign' : 'Assign'}
+                          </button>
+                        )}
+                        {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                          <button
+                            onClick={() => handleStatusUpdate(order.id, 'delivered')}
+                            style={{ 
+                              background: '#10B981', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                          >
+                            Complete
+                          </button>
+                        )}
+                        {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                          <button
+                            onClick={() => handleStatusUpdate(order.id, 'cancelled')}
+                            style={{ 
+                              background: '#EF4444', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+                    No orders found
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal */}
-      {showModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
+      {/* View Details Modal */}
+      {viewDetails && (
+        <div style={{ 
+          position: 'fixed', 
+          inset: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', 
+          alignItems: 'center', 
           justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '30px',
-            width: '90%',
-            maxWidth: '800px',
-            maxHeight: '90vh',
-            overflowY: 'auto'
-          }}>
-            <h2 style={{ 
-              fontSize: '20px', 
-              fontWeight: 'bold', 
-              marginBottom: '20px',
-              color: '#1F2937'
-            }}>
-              Place New Order
-            </h2>
+          zIndex: 1000,
+          padding: '20px'
+        }}
+        onClick={() => setViewDetails(null)}
+        >
+          <div 
+            style={{ 
+              background: 'white', 
+              padding: '30px', 
+              borderRadius: '12px', 
+              width: '100%', 
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1F2937', margin: 0 }}>Order Details</h2>
+              <button 
+                onClick={() => setViewDetails(null)}
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  fontSize: '24px', 
+                  cursor: 'pointer',
+                  color: '#6B7280'
+                }}
+              >
+                ×
+              </button>
+            </div>
 
-            <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
-                    Customer *
-                  </label>
-                  <select
-                    name="customerId"
-                    value={formData.customerId}
-                    onChange={handleInputChange}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <option value="">Select Customer</option>
-                    {customers.map(customer => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name} - {customer.phone}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
-                    Delivery Service *
-                  </label>
-                  <select
-                    name="deliveryService"
-                    value={formData.deliveryService}
-                    onChange={handleInputChange}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                  >
-                    <option value="">Select Service</option>
-                    {deliveryServices.map(service => (
-                      <option key={service.id} value={service.name}>
-                        {service.name} - {service.price} ({service.time})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
-                    Payment Method *
-                  </label>
-                  <select
-                    name="paymentMethod"
-                    value={formData.paymentMethod}
-                    onChange={handleInputChange}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                  >
-                    {paymentMethods.map(method => (
-                      <option key={method} value={method}>{method}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
-                    Estimated Delivery Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    name="estimatedDelivery"
-                    value={formData.estimatedDelivery}
-                    onChange={handleInputChange}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '6px',
-                      fontSize: '14px'
-                    }}
-                  />
-                </div>
-
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: '500', color: '#374151' }}>
-                    Order Items *
-                  </label>
-                  {formData.items.map((item, index) => (
-                    <div key={index} style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: '2fr 1fr 1fr 1fr auto', 
-                      gap: '10px', 
-                      marginBottom: '10px',
-                      alignItems: 'end'
-                    }}>
-                      <input
-                        type="text"
-                        placeholder="Item name"
-                        value={item.name}
-                        onChange={(e) => handleItemChange(index, 'name', e.target.value)}
-                        required
-                        style={{
-                          padding: '10px',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <select
-                        value={item.category}
-                        onChange={(e) => handleItemChange(index, 'category', e.target.value)}
-                        style={{
-                          padding: '10px',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      >
-                        {categories.map(category => (
-                          <option key={category} value={category}>{category}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Qty"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                        required
-                        style={{
-                          padding: '10px',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <input
-                        type="number"
-                        placeholder="Price"
-                        min="0"
-                        step="0.01"
-                        value={item.price}
-                        onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-                        required
-                        style={{
-                          padding: '10px',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          fontSize: '14px'
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeItem(index)}
-                        disabled={formData.items.length === 1}
-                        style={{
-                          background: formData.items.length === 1 ? '#D1D5DB' : '#EF4444',
-                          color: 'white',
-                          border: 'none',
-                          padding: '10px',
-                          borderRadius: '6px',
-                          cursor: formData.items.length === 1 ? 'not-allowed' : 'pointer',
-                          fontSize: '14px'
-                        }}
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addItem}
-                    style={{
-                      background: '#3B82F6',
-                      color: 'white',
-                      border: 'none',
-                      padding: '10px 20px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginTop: '10px'
-                    }}
-                  >
-                    <FaPlus />
-                    Add Item
-                  </button>
-                </div>
-
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500', color: '#374151' }}>
-                    Special Instructions
-                  </label>
-                  <textarea
-                    name="specialInstructions"
-                    value={formData.specialInstructions}
-                    onChange={handleInputChange}
-                    rows="3"
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      resize: 'vertical'
-                    }}
-                  />
-                </div>
-
-                {/* Order Summary */}
-                {formData.customerId && formData.deliveryService && (
-                  <div style={{ 
-                    gridColumn: '1 / -1',
-                    background: '#F9FAFB',
-                    padding: '20px',
-                    borderRadius: '8px',
-                    border: '1px solid #E5E7EB'
-                  }}>
-                    <h4 style={{ margin: '0 0 15px 0', color: '#1F2937' }}>Order Summary</h4>
-                    {formData.items.map((item, index) => (
-                      <div key={index} style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        marginBottom: '5px',
-                        fontSize: '14px'
-                      }}>
-                        <span>{item.quantity}x {item.name}</span>
-                        <span>Rs. {(item.quantity * item.price).toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      marginBottom: '5px',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}>
-                      <span>Subtotal:</span>
-                      <span>Rs. {calculateTotal(formData.items, formData.deliveryService).subtotal.toLocaleString()}</span>
-                    </div>
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      marginBottom: '10px',
-                      fontSize: '14px',
-                      fontWeight: '500'
-                    }}>
-                      <span>Delivery Fee:</span>
-                      <span>Rs. {calculateTotal(formData.items, formData.deliveryService).deliveryFee.toLocaleString()}</span>
-                    </div>
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      color: '#059669',
-                      borderTop: '1px solid #E5E7EB',
-                      paddingTop: '10px'
-                    }}>
-                      <span>Total:</span>
-                      <span>Rs. {calculateTotal(formData.items, formData.deliveryService).total.toLocaleString()}</span>
-                    </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+              {/* Order Info */}
+              <div style={{ background: '#F9FAFB', padding: '16px', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1F2937', marginBottom: '12px' }}>Order Information</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Order ID: </span>
+                    <span style={{ color: '#1F2937', fontSize: '14px', fontWeight: '500' }}>{viewDetails.id}</span>
                   </div>
-                )}
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Status: </span>
+                    <span style={{ 
+                      color: getStatusColor(viewDetails.status),
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      textTransform: 'capitalize'
+                    }}>
+                      {viewDetails.status || 'pending'}
+                    </span>
+                  </div>
+                  {viewDetails.createdAt && (
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '14px' }}>Created: </span>
+                      <span style={{ color: '#1F2937', fontSize: '14px' }}>{new Date(viewDetails.createdAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {viewDetails.updatedAt && (
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '14px' }}>Updated: </span>
+                      <span style={{ color: '#1F2937', fontSize: '14px' }}>{new Date(viewDetails.updatedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div style={{ 
-                display: 'flex', 
-                gap: '15px', 
-                justifyContent: 'flex-end', 
-                marginTop: '30px' 
-              }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingOrder(null);
-                    setFormData({
-                      customerId: '',
-                      items: [{ name: '', quantity: 1, price: 0, category: 'Food' }],
-                      deliveryService: '',
-                      paymentMethod: 'Cash on Delivery',
-                      specialInstructions: '',
-                      estimatedDelivery: ''
-                    });
-                  }}
-                  style={{
-                    padding: '12px 24px',
-                    border: '1px solid #D1D5DB',
-                    background: 'white',
-                    color: '#374151',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: '12px 24px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Place Order
-                </button>
+              {/* Package Info */}
+              <div style={{ background: '#F9FAFB', padding: '16px', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1F2937', marginBottom: '12px' }}>Package Details</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Category: </span>
+                    <span style={{ color: '#1F2937', fontSize: '14px', fontWeight: '500' }}>{viewDetails.categoryName || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Type: </span>
+                    <span style={{ color: '#1F2937', fontSize: '14px', fontWeight: '500' }}>{viewDetails.packageType || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Weight: </span>
+                    <span style={{ color: '#1F2937', fontSize: '14px' }}>{viewDetails.weight || 'N/A'} kg</span>
+                  </div>
+                  {viewDetails.packagePhoto && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '4px' }}>Package Photo:</div>
+                      <img 
+                        src={viewDetails.packagePhoto} 
+                        alt="Package" 
+                        style={{ 
+                          width: '100%', 
+                          maxHeight: '150px', 
+                          objectFit: 'cover', 
+                          borderRadius: '8px',
+                          border: '1px solid #E5E7EB'
+                        }} 
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-            </form>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+              {/* Customer Info */}
+              <div style={{ background: '#F9FAFB', padding: '16px', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1F2937', marginBottom: '12px' }}>Customer Information</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Name: </span>
+                    <span style={{ color: '#1F2937', fontSize: '14px', fontWeight: '500' }}>{viewDetails.customerName || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#6B7280', fontSize: '14px' }}>Email: </span>
+                    <span style={{ color: '#1F2937', fontSize: '14px' }}>{viewDetails.customerEmail || 'N/A'}</span>
+                  </div>
+                  {viewDetails.userId && (
+                    <div>
+                      <span style={{ color: '#6B7280', fontSize: '14px' }}>User ID: </span>
+                      <span style={{ color: '#1F2937', fontSize: '14px' }}>{viewDetails.userId}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Rider Info */}
+              <div style={{ background: '#F9FAFB', padding: '16px', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1F2937', marginBottom: '12px' }}>Rider Information</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {viewDetails.riderName ? (
+                    <>
+                      <div>
+                        <span style={{ color: '#6B7280', fontSize: '14px' }}>Name: </span>
+                        <span style={{ color: '#1F2937', fontSize: '14px', fontWeight: '500' }}>{viewDetails.riderName}</span>
+                      </div>
+                      {viewDetails.riderPhone && (
+                        <div>
+                          <span style={{ color: '#6B7280', fontSize: '14px' }}>Phone: </span>
+                          <span style={{ color: '#1F2937', fontSize: '14px' }}>{viewDetails.riderPhone}</span>
+                        </div>
+                      )}
+                      {viewDetails.riderEmail && (
+                        <div>
+                          <span style={{ color: '#6B7280', fontSize: '14px' }}>Email: </span>
+                          <span style={{ color: '#1F2937', fontSize: '14px' }}>{viewDetails.riderEmail}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ color: '#9CA3AF', fontSize: '14px', fontStyle: 'italic' }}>
+                      No rider assigned
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Location Info */}
+            <div style={{ background: '#F9FAFB', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1F2937', marginBottom: '12px' }}>Location Information</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <FaMapMarkerAlt style={{ fontSize: '14px', color: '#10B981' }} />
+                    <span style={{ color: '#6B7280', fontSize: '14px', fontWeight: '500' }}>Pickup Location:</span>
+                  </div>
+                  <div style={{ color: '#1F2937', fontSize: '14px', marginLeft: '20px' }}>
+                    {viewDetails.pickupLocation || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <FaMapMarkerAlt style={{ fontSize: '14px', color: '#EF4444' }} />
+                    <span style={{ color: '#6B7280', fontSize: '14px', fontWeight: '500' }}>Drop Location:</span>
+                  </div>
+                  <div style={{ color: '#1F2937', fontSize: '14px', marginLeft: '20px' }}>
+                    {viewDetails.dropLocation || 'N/A'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Notes */}
+            {viewDetails.additionalNotes && (
+              <div style={{ background: '#F9FAFB', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1F2937', marginBottom: '12px' }}>Additional Notes</h3>
+                <p style={{ color: '#1F2937', fontSize: '14px', margin: 0 }}>{viewDetails.additionalNotes}</p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button 
+                onClick={() => setViewDetails(null)}
+                style={{ 
+                  padding: '10px 20px', 
+                  background: '#6B7280', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Close
+              </button>
+              {(viewDetails.status === 'pending' || viewDetails.status === 'assigned') && (
+                <button 
+                  onClick={() => {
+                    setViewDetails(null);
+                    openAssignModal(viewDetails);
+                  }}
+                  style={{ 
+                    padding: '10px 20px', 
+                    background: '#8B5CF6', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  {viewDetails.riderName ? 'Reassign Rider' : 'Assign Rider'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Rider Modal */}
+      {assignModalOrder && (
+        <div style={{ 
+          position: 'fixed', 
+          inset: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}
+        onClick={closeAssignModal}
+        >
+          <div 
+            style={{ 
+              background: 'white', 
+              padding: '30px', 
+              borderRadius: '12px', 
+              width: '100%', 
+              maxWidth: '600px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1F2937', margin: 0 }}>Assign Rider</h2>
+              <button 
+                onClick={closeAssignModal}
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  fontSize: '24px', 
+                  cursor: 'pointer',
+                  color: '#6B7280'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '15px' }}>Order ID: {assignModalOrder.id}</p>
+              {riders.length === 0 ? (
+                <div style={{ 
+                  padding: '20px', 
+                  textAlign: 'center', 
+                  background: '#F9FAFB', 
+                  borderRadius: '8px',
+                  color: '#6B7280'
+                }}>
+                  No riders available
+                </div>
+              ) : (
+                <div style={{ 
+                  maxHeight: '400px', 
+                  overflowY: 'auto', 
+                  border: '1px solid #E5E7EB', 
+                  borderRadius: '8px',
+                  padding: '8px'
+                }}>
+                  {riders.map(r => (
+                    <label 
+                      key={r.id || r.uid} 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '12px', 
+                        padding: '12px', 
+                        borderBottom: '1px solid #F3F4F6',
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <input 
+                        type="radio" 
+                        name="selectedRider" 
+                        value={r.id || r.uid} 
+                        checked={(selectedRiderId === (r.id || r.uid))} 
+                        onChange={() => setSelectedRiderId(r.id || r.uid)} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: '#1F2937', fontSize: '14px' }}>
+                          {r.firstName ? `${r.firstName} ${r.lastName || ''}`.trim() : r.name || 'Unknown Rider'}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#6B7280', marginTop: '4px' }}>
+                          {r.email || r.phone || 'No contact info'}
+                        </div>
+                        {r.status && (
+                          <div style={{ fontSize: 12, color: r.status === 'approved' || r.status === 'Active' ? '#10B981' : '#F59E0B', marginTop: '4px' }}>
+                            Status: {r.status}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={closeAssignModal} 
+                style={{ 
+                  padding: '10px 20px', 
+                  background: '#6B7280', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={saveAssignModal} 
+                disabled={assignLoading || !selectedRiderId} 
+                style={{ 
+                  padding: '10px 20px', 
+                  background: assignLoading || !selectedRiderId ? '#9CA3AF' : '#10B981', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '8px',
+                  cursor: assignLoading || !selectedRiderId ? 'not-allowed' : 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                {assignLoading ? 'Assigning...' : 'Assign Rider'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -900,4 +959,3 @@ const OrderPlacement = () => {
 };
 
 export default OrderPlacement;
-

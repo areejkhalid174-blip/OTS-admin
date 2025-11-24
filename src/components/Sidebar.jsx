@@ -39,13 +39,13 @@ export default function Sidebar() {
     { path: '/customer-management', label: 'Customer Management', icon: FaUser, notificationKey: 'pendingCustomers' },
     { path: '/order-placement', label: 'Order Placement', icon: FaShoppingCart },
     { path: '/OrderManagement', label: 'Order Management', icon: IoMdCube, notificationKey: 'pendingOrders' },
+    { path: '/bank-account-management', label: 'Bank Management', icon: BsBank2, adminOnly: true },
     { 
       path: '/payment-management', 
       label: 'Payment Management', 
       icon: MdPayment,
       submenu: [
-        { path: '/payment-management', label: 'Payment Overview' },
-        { path: '/bank-account-management', label: 'Bank Account', icon: BsBank2 }
+        { path: '/payment-management', label: 'Payment Overview' }
       ]
     },
     { path: '/CustomerSupport', label: 'Customer Support', icon: FaRegUser, notificationKey: 'unreadMessages' },
