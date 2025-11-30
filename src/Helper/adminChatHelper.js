@@ -17,13 +17,13 @@ export const debugFirestoreCollections = async () => {
     console.log("🔧 DEBUG: Checking Firestore connection...");
     console.log("🔧 DB instance:", db);
     
-    // Try to get all documents from 'chats' collection
-    const chatsRef = collection(db, "chats");
-    console.log("🔧 Chats reference created:", chatsRef);
+    // Try to get all documents from 'messages' collection
+    const messagesRef = collection(db, "messages");
+    console.log("🔧 Messages reference created:", messagesRef);
     
-    const snapshot = await getDocs(chatsRef);
+    const snapshot = await getDocs(messagesRef);
     console.log("✅ Firestore connection OK");
-    console.log(`📊 Chats collection has ${snapshot.docs.length} documents`);
+    console.log(`📊 Messages collection has ${snapshot.docs.length} documents`);
     
     if (snapshot.docs.length > 0) {
       console.log("📋 Chat documents:");
@@ -32,7 +32,7 @@ export const debugFirestoreCollections = async () => {
         console.log(`     Data:`, doc.data());
       });
     } else {
-      console.log("⚠️ WARNING: Chats collection is empty or not accessible!");
+      console.log("⚠️ WARNING: Messages collection is empty or not accessible!");
     }
     
     return snapshot.docs.length;
@@ -44,71 +44,40 @@ export const debugFirestoreCollections = async () => {
 };
 
 /**
- * Fetch all chats where the admin is involved
- * Chat document IDs follow the format: userId1_userId2
- * @param {string} adminId - The logged-in admin's UID
+ * Fetch all admin chats
+ * Chat document IDs are userId (unique per user)
  * @returns {Promise<Array>} Array of chat conversations
  */
-export const fetchAdminChats = async (adminId) => {
+export const fetchAdminChats = async () => {
   try {
-    if (!adminId) {
-      console.warn("fetchAdminChats: adminId is required");
-      return [];
-    }
+    console.log("🔍 Fetching all admin chats");
 
-    const adminIdTrimmed = adminId.trim();
-    console.log("🔍 Searching for admin chats with adminId:", adminIdTrimmed);
+    // Fetch ALL chats from the adminChats collection
+    const adminChatsRef = collection(db, "adminChats");
+    const snapshot = await getDocs(adminChatsRef);
 
-    // Fetch ALL chats from the collection
-    const chatsRef = collection(db, "chats");
-    const snapshot = await getDocs(chatsRef);
-
-    console.log("📊 Total chats fetched from database:", snapshot.docs.length);
-    console.log("📋 All chat document IDs:");
-    
-    // Log all chat IDs first
-    snapshot.docs.forEach((doc, index) => {
-      console.log(`   [${index}] ${doc.id}`);
-    });
+    console.log("📊 Total admin chats fetched from database:", snapshot.docs.length);
 
     const adminChats = [];
 
-    // Filter chats where admin ID is involved
+    // Process all chats
     for (const doc of snapshot.docs) {
       const chatId = doc.id;
+      const chatData = doc.data();
+      const userId = chatData.userId || chatId; // Use chatId as userId if not in data
       
-      console.log(`\n🔎 Processing chat: "${chatId}"`);
+      // Get last message
+      const lastMessage = await getLastAdminChatMessage(chatId);
 
-      // Check if admin ID exists anywhere in the chat ID
-      if (chatId.includes(adminIdTrimmed)) {
-        console.log(`✅ MATCH FOUND! Admin ID found in chat ID`);
-        
-        // Split to get the other user ID
-        const [id1, id2] = chatId.split("_");
-        const id1Trimmed = id1 ? id1.trim() : "";
-        const id2Trimmed = id2 ? id2.trim() : "";
-        
-        // Get the other user's ID
-        const otherUserId =
-          id1Trimmed === adminIdTrimmed ? id2Trimmed : id1Trimmed;
-
-        console.log(`   - Other User ID: ${otherUserId}`);
-
-        // Get last message
-        const lastMessage = await getLastAdminChatMessage(chatId);
-
-        adminChats.push({
-          chatId,
-          adminId: adminIdTrimmed,
-          otherUserId,
-          lastMessage: lastMessage?.text || "",
-          lastMessageTime: lastMessage?.createdAt || null,
-          senderId: lastMessage?.senderId || null,
-          ...doc.data(),
-        });
-      } else {
-        console.log(`❌ No match - Admin ID not in this chat`);
-      }
+      adminChats.push({
+        autoDocId: chatId, // Store the document ID for Firestore operations
+        chatId, // The chatId (same as userId)
+        userId: userId, // The user ID
+        lastMessage: lastMessage?.text || "",
+        lastMessageTime: lastMessage?.createdAt || chatData.updatedAt || null,
+        senderId: lastMessage?.senderId || null,
+        ...chatData,
+      });
     }
 
     // Sort by last message time (newest first)
@@ -123,7 +92,6 @@ export const fetchAdminChats = async (adminId) => {
     });
 
     console.log("✨ Final admin chats found:", adminChats.length);
-    console.log("📋 Admin chats:", adminChats);
 
     return adminChats;
   } catch (error) {
@@ -139,7 +107,7 @@ export const fetchAdminChats = async (adminId) => {
  */
 export const getChatMessages = async (chatId) => {
   try {
-    const messagesRef = collection(db, "chats", chatId, "messages");
+    const messagesRef = collection(db, "adminChats", chatId, "messages");
     const messagesQuery = query(messagesRef, orderBy("createdAt", "asc"));
 
     const snapshot = await getDocs(messagesQuery);
@@ -163,7 +131,7 @@ export const getChatMessages = async (chatId) => {
  */
 export const getLastAdminChatMessage = async (chatId) => {
   try {
-    const messagesRef = collection(db, "chats", chatId, "messages");
+    const messagesRef = collection(db, "adminChats", chatId, "messages");
     const messagesQuery = query(
       messagesRef,
       orderBy("createdAt", "desc"),
@@ -189,49 +157,35 @@ export const getLastAdminChatMessage = async (chatId) => {
 
 /**
  * Subscribe to real-time updates of admin chats
- * @param {string} adminId - The logged-in admin's UID
  * @param {Function} callback - Function to call when chats update
  * @returns {Function} Unsubscribe function
  */
-export const subscribeToAdminChats = (adminId, callback) => {
+export const subscribeToAdminChats = (callback) => {
   try {
-    if (!adminId) {
-      console.warn("subscribeToAdminChats: adminId is required");
-      return () => {};
-    }
+    const adminChatsRef = collection(db, "adminChats");
 
-    const chatsRef = collection(db, "chats");
-    const adminIdTrimmed = adminId.trim();
-
-    // Subscribe to chats collection
+    // Subscribe to adminChats collection
     const unsubscribe = onSnapshot(
-      chatsRef,
+      adminChatsRef,
       async (snapshot) => {
         const adminChats = [];
 
         for (const doc of snapshot.docs) {
           const chatId = doc.id;
-          const [id1, id2] = chatId.split("_");
+          const chatData = doc.data();
+          const userId = chatData.userId || chatId; // Use chatId as userId if not in data
 
-          // Check if admin is part of this chat
-          if (
-            id1.trim() === adminIdTrimmed ||
-            id2.trim() === adminIdTrimmed
-          ) {
-            const otherUserId =
-              id1.trim() === adminIdTrimmed ? id2.trim() : id1.trim();
-            const lastMessage = await getLastAdminChatMessage(chatId);
+          const lastMessage = await getLastAdminChatMessage(chatId);
 
-            adminChats.push({
-              chatId,
-              adminId: adminIdTrimmed,
-              otherUserId,
-              lastMessage: lastMessage?.text || "",
-              lastMessageTime: lastMessage?.createdAt || null,
-              senderId: lastMessage?.senderId || null,
-              ...doc.data(),
-            });
-          }
+          adminChats.push({
+            autoDocId: chatId,
+            chatId,
+            userId: userId,
+            lastMessage: lastMessage?.text || "",
+            lastMessageTime: lastMessage?.createdAt || chatData.updatedAt || null,
+            senderId: lastMessage?.senderId || null,
+            ...chatData,
+          });
         }
 
         // Sort by last message time
@@ -273,7 +227,7 @@ export const subscribeToAdminChatMessages = (chatId, callback) => {
       return () => {};
     }
 
-    const messagesRef = collection(db, "chats", chatId, "messages");
+    const messagesRef = collection(db, "adminChats", chatId, "messages");
     const messagesQuery = query(messagesRef, orderBy("createdAt", "asc"));
 
     const unsubscribe = onSnapshot(

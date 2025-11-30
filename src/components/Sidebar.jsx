@@ -69,7 +69,7 @@ export default function Sidebar() {
   return (
     <div style={{
       width: 300,
-      height: '100vh',
+      height: 'auto',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       color: 'white',
       padding: '20px',

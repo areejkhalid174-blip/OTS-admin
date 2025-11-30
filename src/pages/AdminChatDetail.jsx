@@ -74,7 +74,7 @@ export default function AdminChatDetail() {
     setMessageText('');
 
     try {
-      await addDoc(collection(db, 'chats', conversationId, 'messages'), {
+      await addDoc(collection(db, 'messages', conversationId, 'messages'), {
         text: trimmed,
         senderId: adminId,
         recipientId: otherUserId,
