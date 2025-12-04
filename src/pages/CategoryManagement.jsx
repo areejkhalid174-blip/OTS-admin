@@ -1,5 +1,22 @@
 import React, { useState } from 'react';
 import { useCategory } from '../context/CategoryContext';
+import { 
+  IoFastFoodOutline, 
+  IoLaptopOutline, 
+  IoShirtOutline, 
+  IoBookOutline, 
+  IoCarOutline, 
+  IoHomeOutline, 
+  IoPhonePortraitOutline,
+  IoGameControllerOutline,
+  IoMusicalNotesOutline,
+  IoFitnessOutline,
+  IoMedicalOutline,
+  IoSchoolOutline,
+  IoBusinessOutline,
+  IoRestaurantOutline,
+  IoCafeOutline
+} from 'react-icons/io5';
 
 export default function CategoryManagement() {
   const { categories, addCategory, updateCategory, deleteCategory } = useCategory();
@@ -111,6 +128,30 @@ export default function CategoryManagement() {
     'cafe-outline'
   ];
 
+  // Map icon names to actual icon components
+  const getIconComponent = (iconName) => {
+    const iconMap = {
+      'fast-food-outline': IoFastFoodOutline,
+      'laptop-outline': IoLaptopOutline,
+      'shirt-outline': IoShirtOutline,
+      'book-outline': IoBookOutline,
+      'car-outline': IoCarOutline,
+      'home-outline': IoHomeOutline,
+      'phone-outline': IoPhonePortraitOutline,
+      'game-controller-outline': IoGameControllerOutline,
+      'musical-notes-outline': IoMusicalNotesOutline,
+      'fitness-outline': IoFitnessOutline,
+      'medical-outline': IoMedicalOutline,
+      'school-outline': IoSchoolOutline,
+      'business-outline': IoBusinessOutline,
+      'restaurant-outline': IoRestaurantOutline,
+      'cafe-outline': IoCafeOutline
+    };
+
+    const IconComponent = iconMap[iconName];
+    return IconComponent || null;
+  };
+
   return (
     <div style={{ padding: '20px' }}>
       <div style={{
@@ -190,24 +231,47 @@ export default function CategoryManagement() {
                 <label style={{ display: 'block', marginBottom: '5px', color: '#555', fontWeight: '500' }}>
                   Icon Name
                 </label>
-                <select
-                  name="icon"
-                  value={formData.icon}
-                  onChange={handleChange}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: `2px solid ${errors.icon ? '#e74c3c' : '#ddd'}`,
-                    borderRadius: '5px',
-                    fontSize: '14px',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  <option value="">Select an icon</option>
-                  {iconOptions.map(icon => (
-                    <option key={icon} value={icon}>{icon}</option>
-                  ))}
-                </select>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    name="icon"
+                    value={formData.icon}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      paddingLeft: formData.icon ? '40px' : '10px',
+                      border: `2px solid ${errors.icon ? '#e74c3c' : '#ddd'}`,
+                      borderRadius: '5px',
+                      fontSize: '14px',
+                      boxSizing: 'border-box',
+                      appearance: 'none',
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23333\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 10px center',
+                      paddingRight: '30px'
+                    }}
+                  >
+                    <option value="">Select an icon</option>
+                    {iconOptions.map(icon => (
+                      <option key={icon} value={icon}>{icon}</option>
+                    ))}
+                  </select>
+                  {formData.icon && (
+                    <div style={{
+                      position: 'absolute',
+                      left: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: '#667eea'
+                    }}>
+                      {(() => {
+                        const IconComponent = getIconComponent(formData.icon);
+                        return IconComponent ? <IconComponent size={18} /> : null;
+                      })()}
+                    </div>
+                  )}
+                </div>
                 {errors.icon && (
                   <span style={{ color: '#e74c3c', fontSize: '12px' }}>{errors.icon}</span>
                 )}
@@ -293,7 +357,10 @@ export default function CategoryManagement() {
                       color: 'white',
                       fontSize: '18px'
                     }}>
-                      📦
+                      {(() => {
+                        const IconComponent = getIconComponent(category.icon);
+                        return IconComponent ? <IconComponent size={20} /> : '📦';
+                      })()}
                     </div>
                   </td>
                   <td style={{ padding: '15px' }}>

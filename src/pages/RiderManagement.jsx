@@ -189,8 +189,6 @@ const RiderManagement = () => {
 
   const availableRiders = getAvailableRiders();
   const activeRiders = riders.filter(r => r.status === 'approved' || r.status === 'Active');
-  const averageRating = riders.length > 0 ? 
-    (riders.reduce((sum, r) => sum + (r.ratting || 0), 0) / riders.length).toFixed(1) : 0;
 
   if (loading) {
     return (
@@ -290,27 +288,6 @@ const RiderManagement = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Average Rating</p>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#F59E0B', margin: 0 }}>
-                {averageRating}
-              </p>
-              <p style={{ color: '#F59E0B', fontSize: '12px', margin: '5px 0 0 0' }}>
-                out of 5.0
-              </p>
-            </div>
-            <FaStar style={{ fontSize: '24px', color: '#F59E0B' }} />
-          </div>
-        </div>
-
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          border: '1px solid #E5E7EB'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
               <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Available Now</p>
               <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#3B82F6', margin: 0 }}>
                 {availableRiders.length}
@@ -320,27 +297,6 @@ const RiderManagement = () => {
               </p>
             </div>
             <FaMapMarkerAlt style={{ fontSize: '24px', color: '#3B82F6' }} />
-          </div>
-        </div>
-
-        <div style={{
-          background: 'white',
-          padding: '20px',
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          border: '1px solid #E5E7EB'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Pending Approval</p>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#F59E0B', margin: 0 }}>
-                {pendingRiders.length}
-              </p>
-              <p style={{ color: '#F59E0B', fontSize: '12px', margin: '5px 0 0 0' }}>
-                Awaiting review
-              </p>
-            </div>
-            <FaExclamationTriangle style={{ fontSize: '24px', color: '#F59E0B' }} />
           </div>
         </div>
       </div>

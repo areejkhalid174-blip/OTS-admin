@@ -85,10 +85,9 @@ const OrderPlacement = () => {
     switch (statusLower) {
       case 'pending':
         return <FaClock style={{ color: '#F59E0B' }} />;
-      case 'assigned':
-        return <FaUser style={{ color: '#3B82F6' }} />;
       case 'in-progress':
       case 'in progress':
+      case 'in_progress':
         return <FaExclamationTriangle style={{ color: '#8B5CF6' }} />;
       case 'delivered':
         return <FaCheckCircle style={{ color: '#10B981' }} />;
@@ -104,10 +103,9 @@ const OrderPlacement = () => {
     switch (statusLower) {
       case 'pending':
         return '#F59E0B';
-      case 'assigned':
-        return '#3B82F6';
       case 'in-progress':
       case 'in progress':
+      case 'in_progress':
         return '#8B5CF6';
       case 'delivered':
         return '#10B981';
@@ -148,7 +146,7 @@ const OrderPlacement = () => {
         riderName: riderName || null,
         riderPhone: riderPhone || null,
         riderEmail: riderEmail || null,
-        status: assignModalOrder.status === 'pending' ? 'assigned' : assignModalOrder.status,
+        status: assignModalOrder.status === 'pending' ? 'in_progress' : assignModalOrder.status,
         updatedAt: new Date().toISOString()
       });
 
@@ -192,9 +190,11 @@ const OrderPlacement = () => {
   const stats = {
     totalOrders: orders.length,
     pendingOrders: orders.filter(o => (o.status || '').toLowerCase() === 'pending').length,
-    assignedOrders: orders.filter(o => (o.status || '').toLowerCase() === 'assigned').length,
-    deliveredOrders: orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length,
-    inProgressOrders: orders.filter(o => (o.status || '').toLowerCase() === 'in-progress' || (o.status || '').toLowerCase() === 'in progress').length
+    inProgressOrders: orders.filter(o => {
+      const status = (o.status || '').toLowerCase();
+      return status === 'in-progress' || status === 'in progress' || status === 'in_progress';
+    }).length,
+    deliveredOrders: orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length
   };
 
   if (loading) {
@@ -292,12 +292,15 @@ const OrderPlacement = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>Assigned</p>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#3B82F6', margin: 0 }}>
-                {stats.assignedOrders}
+              <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 5px 0' }}>In Progress</p>
+              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#8B5CF6', margin: 0 }}>
+                {stats.inProgressOrders}
+              </p>
+              <p style={{ color: '#8B5CF6', fontSize: '12px', margin: '5px 0 0 0' }}>
+                Accepted by rider
               </p>
             </div>
-            <FaUser style={{ fontSize: '24px', color: '#3B82F6' }} />
+            <FaExclamationTriangle style={{ fontSize: '24px', color: '#8B5CF6' }} />
           </div>
         </div>
 
@@ -366,8 +369,7 @@ const OrderPlacement = () => {
           >
             <option value="All">All Status</option>
             <option value="pending">Pending</option>
-            <option value="assigned">Assigned</option>
-            <option value="in-progress">In Progress</option>
+            <option value="in_progress">In Progress (Accepted)</option>
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
           </select>
@@ -509,7 +511,7 @@ const OrderPlacement = () => {
                         >
                           View
                         </button>
-                        {(order.status === 'pending' || order.status === 'assigned') && (
+                        {order.status === 'pending' && (
                           <button
                             onClick={() => openAssignModal(order)}
                             style={{ 
@@ -523,7 +525,24 @@ const OrderPlacement = () => {
                               fontWeight: 600
                             }}
                           >
-                            {order.riderName ? 'Reassign' : 'Assign'}
+                            Assign Rider
+                          </button>
+                        )}
+                        {(order.status === 'in_progress' || order.status === 'in-progress' || order.status === 'in progress') && order.riderName && (
+                          <button
+                            onClick={() => openAssignModal(order)}
+                            style={{ 
+                              background: '#3B82F6', 
+                              color: 'white', 
+                              border: 'none', 
+                              padding: '6px 10px', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer', 
+                              fontSize: '11px', 
+                              fontWeight: 600
+                            }}
+                          >
+                            Reassign
                           </button>
                         )}
                         {order.status !== 'delivered' && order.status !== 'cancelled' && (
@@ -792,7 +811,7 @@ const OrderPlacement = () => {
               >
                 Close
               </button>
-              {(viewDetails.status === 'pending' || viewDetails.status === 'assigned') && (
+              {viewDetails.status === 'pending' && (
                 <button 
                   onClick={() => {
                     setViewDetails(null);
@@ -808,7 +827,26 @@ const OrderPlacement = () => {
                     fontWeight: '600'
                   }}
                 >
-                  {viewDetails.riderName ? 'Reassign Rider' : 'Assign Rider'}
+                  Assign Rider
+                </button>
+              )}
+              {(viewDetails.status === 'in_progress' || viewDetails.status === 'in-progress' || viewDetails.status === 'in progress') && viewDetails.riderName && (
+                <button 
+                  onClick={() => {
+                    setViewDetails(null);
+                    openAssignModal(viewDetails);
+                  }}
+                  style={{ 
+                    padding: '10px 20px', 
+                    background: '#3B82F6', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  Reassign Rider
                 </button>
               )}
             </div>

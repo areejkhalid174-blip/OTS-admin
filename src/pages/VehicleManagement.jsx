@@ -22,6 +22,8 @@ const VehicleManagement = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterType, setFilterType] = useState('All');
   const [imageErrors, setImageErrors] = useState({});
+  const [viewModal, setViewModal] = useState(false);
+  const [viewingVehicle, setViewingVehicle] = useState(null);
   const [formData, setFormData] = useState({
     vehicleNumber: '',
     vehicleType: 'Motorcycle',
@@ -129,6 +131,11 @@ const VehicleManagement = () => {
     if (window.confirm('Are you sure you want to delete this vehicle?')) {
       deleteVehicle(id);
     }
+  };
+
+  const handleView = (vehicle) => {
+    setViewingVehicle(vehicle);
+    setViewModal(true);
   };
 
 
@@ -631,6 +638,27 @@ const VehicleManagement = () => {
                   <td style={{ padding: '16px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                       <button
+                        onClick={() => handleView(vehicle)}
+                        style={{
+                          background: '#10B981',
+                          color: 'white',
+                          border: 'none',
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => e.target.style.background = '#059669'}
+                        onMouseOut={(e) => e.target.style.background = '#10B981'}
+                      >
+                        <FaSearch />
+                        View
+                      </button>
+                      <button
                         onClick={() => handleEdit(vehicle)}
                         style={{
                           background: '#3B82F6',
@@ -642,8 +670,11 @@ const VehicleManagement = () => {
                           fontSize: '12px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px'
+                          gap: '4px',
+                          transition: 'all 0.2s'
                         }}
+                        onMouseOver={(e) => e.target.style.background = '#2563EB'}
+                        onMouseOut={(e) => e.target.style.background = '#3B82F6'}
                       >
                         <FaEdit />
                         Edit
@@ -660,8 +691,11 @@ const VehicleManagement = () => {
                           fontSize: '12px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px'
+                          gap: '4px',
+                          transition: 'all 0.2s'
                         }}
+                        onMouseOver={(e) => e.target.style.background = '#DC2626'}
+                        onMouseOut={(e) => e.target.style.background = '#EF4444'}
                       >
                         <FaTrash />
                         Delete
@@ -1031,6 +1065,248 @@ const VehicleManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Vehicle Modal */}
+      {viewModal && viewingVehicle && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '30px',
+            width: '90%',
+            maxWidth: '700px',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ 
+                fontSize: '24px', 
+                fontWeight: 'bold', 
+                color: '#1F2937',
+                margin: 0
+              }}>
+                Vehicle Details
+              </h2>
+              <button
+                onClick={() => {
+                  setViewModal(false);
+                  setViewingVehicle(null);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#6B7280',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              {/* Vehicle Image */}
+              {viewingVehicle.vehicleImage && !imageErrors[viewingVehicle.id] && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <img 
+                    src={viewingVehicle.vehicleImage} 
+                    alt="Vehicle" 
+                    style={{ 
+                      width: '100%', 
+                      maxHeight: '300px',
+                      objectFit: 'contain', 
+                      borderRadius: '8px',
+                      border: '1px solid #E5E7EB'
+                    }} 
+                    onError={() => {
+                      setImageErrors(prev => ({ ...prev, [viewingVehicle.id]: true }));
+                    }}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Vehicle Number
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.vehicleNumber || viewingVehicle.numberPlate || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Vehicle Type
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.vehicleType || viewingVehicle.category || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Brand
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.brand || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Model
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.model || viewingVehicle.modelName || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Year
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.year || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Color
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.color || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Status
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.status || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Driver Name
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.driverName || viewingVehicle.riderName || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                  Driver Phone
+                </label>
+                <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                  {viewingVehicle.driverPhone || 'N/A'}
+                </div>
+              </div>
+
+              {viewingVehicle.registrationDate && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Registration Date
+                  </label>
+                  <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                    {new Date(viewingVehicle.registrationDate).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+
+              {viewingVehicle.lastServiceDate && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Last Service Date
+                  </label>
+                  <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                    {new Date(viewingVehicle.lastServiceDate).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+
+              {viewingVehicle.nextServiceDate && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Next Service Date
+                  </label>
+                  <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                    {new Date(viewingVehicle.nextServiceDate).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+
+              {viewingVehicle.insuranceExpiry && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Insurance Expiry
+                  </label>
+                  <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                    {new Date(viewingVehicle.insuranceExpiry).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+
+              {viewingVehicle.createdAt && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Created At
+                  </label>
+                  <div style={{ padding: '10px', background: '#F9FAFB', borderRadius: '6px', color: '#1F2937', fontSize: '14px' }}>
+                    {new Date(viewingVehicle.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ 
+              display: 'flex', 
+              gap: '15px', 
+              justifyContent: 'flex-end', 
+              marginTop: '30px' 
+            }}>
+              <button
+                onClick={() => {
+                  setViewModal(false);
+                  setViewingVehicle(null);
+                }}
+                style={{
+                  padding: '12px 24px',
+                  border: '1px solid #D1D5DB',
+                  background: 'white',
+                  color: '#374151',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

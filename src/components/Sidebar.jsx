@@ -38,7 +38,6 @@ export default function Sidebar() {
     { path: '/rider-management', label: 'Rider Management', icon: CgProfile, notificationKey: 'pendingRiders' },
     { path: '/customer-management', label: 'Customer Management', icon: FaUser, notificationKey: 'pendingCustomers' },
     { path: '/order-placement', label: 'Order Placement', icon: FaShoppingCart },
-    { path: '/OrderManagement', label: 'Order Management', icon: IoMdCube, notificationKey: 'pendingOrders' },
     { path: '/bank-account-management', label: 'Bank Management', icon: BsBank2, adminOnly: true },
     { 
       path: '/payment-management', 

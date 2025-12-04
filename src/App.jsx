@@ -25,7 +25,6 @@ import DeliveryServiceManagement from './pages/DeliveryServiceManagement';
 import RiderManagement from './pages/RiderManagement';
 import CustomerManagement from './pages/CustomerManagement';
 import OrderPlacement from './pages/OrderPlacement';
-import OrderManagement from './pages/OrderManagement';
 import FeedbackSystem from './pages/FeedbackSystem';
 import ReportAnalytics from './pages/ReportAnalytics';
 import PaymentManagement from './pages/PaymentManagement';
@@ -178,16 +177,6 @@ const App = () => {
                 <Sidebar />
                 <div style={{ flex: 1, padding: '20px' }}>
                   <OrderPlacement />
-                </div>
-              </div>
-            </ProtectedRoute>
-          } />
-          <Route path="/OrderManagement" element={
-            <ProtectedRoute>
-              <div style={{ display: 'flex' }}>
-                <Sidebar />
-                <div style={{ flex: 1, padding: '20px' }}>
-                  <OrderManagement />
                 </div>
               </div>
             </ProtectedRoute>
